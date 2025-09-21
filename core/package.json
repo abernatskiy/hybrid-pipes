@@ -1,0 +1,39 @@
+{
+  "name": "@abernatskiy/hybrid-pipes-core",
+  "version": "0.0.0",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "scripts": {
+    "build": "rm -rf dist/ && tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc -w",
+    "test": "vitest",
+    "lint": "biome check .",
+    "lint:fix": "biome check . --write"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@vitest/coverage-v8": "3.2.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@subsquid/http-client": "^1.6.0",
+    "@subsquid/util-internal": "^3.2.0",
+    "pino": "^9.7.0",
+    "pino-std-serializers": "^7.0.0"
+  },
+  "peerDependencies": {
+    "@clickhouse/client": "^1.12.1"
+  },
+  "peerDependenciesMeta": {
+    "@clickhouse/client": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": "<=23.9.0"
+  }
+}
