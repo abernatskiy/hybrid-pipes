@@ -32,7 +32,7 @@ export const events = {
     SupplyCapChanged: event("0x0263602682188540a2d633561c0b4453b7d8566285e99f9f6018b8ef2facef49", "SupplyCapChanged(address,uint256,uint256)", {"asset": indexed(p.address), "oldSupplyCap": p.uint256, "newSupplyCap": p.uint256}),
     VariableDebtTokenUpgraded: event("0x9439658a562a5c46b1173589df89cf001483d685bad28aedaff4a88656292d81", "VariableDebtTokenUpgraded(address,address,address)", {"asset": indexed(p.address), "proxy": indexed(p.address), "implementation": indexed(p.address)}),
 }
-
+/*
 export const functions = {
     CONFIGURATOR_REVISION: viewFun("0x7af635a6", "CONFIGURATOR_REVISION()", {}, p.uint256),
     MAX_GRACE_PERIOD: viewFun("0x46619649", "MAX_GRACE_PERIOD()", {}, p.uint40),
@@ -65,7 +65,7 @@ export const functions = {
     updateAToken: fun("0x14ef0ac5", "updateAToken((address,string,string,address,bytes))", {"input": p.struct({"asset": p.address, "name": p.string, "symbol": p.string, "implementation": p.address, "params": p.bytes})}, ),
     updateFlashloanPremium: fun("0x9c1d5f00", "updateFlashloanPremium(uint128)", {"newFlashloanPremium": p.uint128}, ),
     updateVariableDebtToken: fun("0xbfbc47ff", "updateVariableDebtToken((address,string,string,address,bytes))", {"input": p.struct({"asset": p.address, "name": p.string, "symbol": p.string, "implementation": p.address, "params": p.bytes})}, ),
-}
+} as const
 
 export class Contract extends ContractBase {
 
@@ -210,3 +210,4 @@ export type UpdateFlashloanPremiumReturn = FunctionReturn<typeof functions.updat
 export type UpdateVariableDebtTokenParams = FunctionArguments<typeof functions.updateVariableDebtToken>
 export type UpdateVariableDebtTokenReturn = FunctionReturn<typeof functions.updateVariableDebtToken>
 
+*/

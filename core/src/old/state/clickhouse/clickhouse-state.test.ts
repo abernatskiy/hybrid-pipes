@@ -1,0 +1,664 @@
+// import { createClient } from '@clickhouse/client'
+// import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+//
+// import { closeMockPortal, createMockPortal, MockPortal } from '../../../tests'
+// import { ClickhouseState } from './clickhouse-state'
+//
+// const client = createClient({
+//   url: process.env.TEST_CLICKHOUSE_URL || 'http://localhost:10123',
+//   username: process.env.TEST_CLICKHOUSE_USERNAME || 'default',
+//   password: process.env.TEST_CLICKHOUSE_PASSWORD,
+//   clickhouse_settings: {
+//     date_time_output_format: 'iso',
+//   },
+// })
+//
+// async function getAllFromSyncTable() {
+//   const res = await client.query({
+//     query: 'SELECT * EXCEPT timestamp FROM sync FINAL ORDER BY timestamp ASC',
+//     format: 'JSONEachRow',
+//   })
+//   return await res.json()
+// }
+//
+// describe('Clickhouse state', () => {
+//   let mockPortal: MockPortal
+//
+//   afterEach(async () => {
+//     await closeMockPortal(mockPortal)
+//     await client.close()
+//   })
+//
+//   beforeEach(async () => {
+//     // Ensure DB is empty before each test
+//     await client.query({ query: 'DROP DATABASE IF EXISTS default SYNC' })
+//     await client.query({ query: 'CREATE DATABASE default' })
+//   })
+//
+//   describe('progress table', () => {
+//     it('should store unfinalized blocks to the lastest offset', async () => {
+//       mockPortal = await createMockPortal([
+//         {
+//           statusCode: 200,
+//           data: [
+//             { header: { number: 1, hash: '0x1', timestamp: 1000 } },
+//             { header: { number: 2, hash: '0x2', timestamp: 2000 } },
+//             { header: { number: 3, hash: '0x3', timestamp: 3000 } },
+//             { header: { number: 4, hash: '0x4', timestamp: 4000 } },
+//             { header: { number: 5, hash: '0x5', timestamp: 5000 } },
+//           ],
+//           finalizedHead: { number: 2, hash: '0x2' },
+//         },
+//       ])
+//
+//       const testStream = new TestStream({
+//         portal: mockPortal.url,
+//         state: new ClickhouseState(client, { table: 'sync' }),
+//         blockRange: { from: 0, to: 5 },
+//       })
+//
+//       for await (const _ of await testStream.stream()) {
+//         await testStream.ack()
+//       }
+//
+//       const data = await getAllFromSyncTable()
+//       expect(data).toMatchInlineSnapshot(`
+//         [
+//           {
+//             "chain_continuity": "[]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":0}",
+//             "sign": 1,
+//           },
+//           {
+//             "chain_continuity": "[{"number":5,"hash":"0x5","timestamp":5000},{"number":4,"hash":"0x4","timestamp":4000},{"number":3,"hash":"0x3","timestamp":3000},{"number":2,"hash":"0x2","timestamp":2000}]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":5,"hash":"0x5","timestamp":5000}",
+//             "sign": 1,
+//           },
+//         ]
+//       `)
+//     })
+//     it('should keep 10,000 rows in status table by default', async () => {
+//       mockPortal = await createMockPortal([
+//         {
+//           statusCode: 200,
+//           data: [{ header: { number: 1, hash: '0x1', timestamp: 1000 } }],
+//           finalizedHead: { number: 1000, hash: '0x1000' },
+//         },
+//         {
+//           statusCode: 200,
+//           data: [{ header: { number: 2, hash: '0x2', timestamp: 2000 } }],
+//           finalizedHead: { number: 1000, hash: '0x1000' },
+//         },
+//         {
+//           statusCode: 200,
+//           data: [{ header: { number: 3, hash: '0x3', timestamp: 3000 } }],
+//           finalizedHead: { number: 1000, hash: '0x1000' },
+//         },
+//       ])
+//
+//       const testStream = new TestStream({
+//         portal: mockPortal.url,
+//         state: new ClickhouseState(client, {
+//           table: 'sync',
+//         }),
+//         blockRange: { from: 0, to: 3 },
+//       })
+//
+//       for await (const _ of await testStream.stream()) {
+//         await testStream.ack()
+//       }
+//
+//       const data = await getAllFromSyncTable()
+//       expect(data).toMatchInlineSnapshot(`
+//         [
+//           {
+//             "chain_continuity": "[]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":0}",
+//             "sign": 1,
+//           },
+//           {
+//             "chain_continuity": "[]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":1,"hash":"0x1","timestamp":1000}",
+//             "sign": 1,
+//           },
+//           {
+//             "chain_continuity": "[]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":2,"hash":"0x2","timestamp":2000}",
+//             "sign": 1,
+//           },
+//           {
+//             "chain_continuity": "[]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":3,"hash":"0x3","timestamp":3000}",
+//             "sign": 1,
+//           },
+//         ]
+//       `)
+//     })
+//
+//     it('should keep only 1 row in status table', async () => {
+//       mockPortal = await createMockPortal([
+//         { statusCode: 200, data: [{ header: { number: 1, hash: '0x1', timestamp: 1000 } }] },
+//         { statusCode: 200, data: [{ header: { number: 2, hash: '0x2', timestamp: 2000 } }] },
+//         { statusCode: 200, data: [{ header: { number: 3, hash: '0x3', timestamp: 3000 } }] },
+//       ])
+//
+//       const testStream = new TestStream({
+//         portal: mockPortal.url,
+//         state: new ClickhouseState(client, {
+//           table: 'sync',
+//           settings: {
+//             maxRows: 1,
+//           },
+//         }),
+//         blockRange: { from: 0, to: 3 },
+//       })
+//
+//       for await (const _ of await testStream.stream()) {
+//         await testStream.ack()
+//       }
+//
+//       const data = await getAllFromSyncTable()
+//       expect(data).toMatchInlineSnapshot(`
+//         [
+//           {
+//             "chain_continuity": "[]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":3,"hash":"0x3","timestamp":3000}",
+//             "sign": 1,
+//           },
+//         ]
+//       `)
+//     })
+//
+//     it('should not store chain continuity if finalized head doesnt exist', async () => {
+//       mockPortal = await createMockPortal([
+//         {
+//           statusCode: 200,
+//           data: [{ header: { number: 1, hash: '0x1', timestamp: 1000 } }],
+//         },
+//       ])
+//
+//       const testStream = new TestStream({
+//         portal: mockPortal.url,
+//         state: new ClickhouseState(client, { table: 'sync' }),
+//         blockRange: { from: 0, to: 1 },
+//       })
+//
+//       for await (const _ of await testStream.stream()) {
+//         await testStream.ack()
+//       }
+//
+//       const res = await client.query({ query: 'SELECT * FROM sync ORDER BY timestamp DESC' })
+//       const { data } = await res.json()
+//
+//       expect(data[0]).toMatchObject({
+//         latest: JSON.stringify({ number: 1, hash: '0x1', timestamp: 1000 }),
+//         chain_continuity: JSON.stringify([]),
+//       })
+//     })
+//
+//     it('should continue from the last block after stop', async () => {
+//       mockPortal = await createMockPortal([
+//         {
+//           statusCode: 200,
+//           data: [{ header: { number: 1, hash: '0x1', timestamp: 1000 } }],
+//         },
+//         {
+//           statusCode: 200,
+//           data: [{ header: { number: 2, hash: '0x2', timestamp: 1000 } }],
+//           validateRequest: (req) => {
+//             expect(req).toMatchObject({
+//               type: 'solana',
+//               fromBlock: 2,
+//               parentBlockHash: '0x1',
+//             })
+//           },
+//         },
+//       ])
+//
+//       let testStream = new TestStream({
+//         portal: mockPortal.url,
+//         state: new ClickhouseState(client, { table: 'sync' }),
+//         blockRange: { from: 0, to: 1 },
+//       })
+//
+//       for await (const _ of await testStream.stream()) {
+//         await testStream.ack()
+//       }
+//
+//       testStream = new TestStream({
+//         portal: mockPortal.url,
+//         state: new ClickhouseState(client, { table: 'sync' }),
+//         blockRange: { from: 1, to: 2 },
+//       })
+//
+//       for await (const _ of await testStream.stream()) {
+//         await testStream.ack()
+//       }
+//     })
+//   })
+//
+//   describe('forks', () => {
+//     beforeEach(async () => {
+//       await client.query({
+//         query: `
+//           CREATE TABLE  IF NOT EXISTS test
+//
+//           (
+//               timestamp        DateTime,
+//               block_number     Int32,
+//               block_hash       String,
+//               sign             Int8
+//           ) ENGINE = CollapsingMergeTree(sign)
+//           PARTITION BY toYYYYMM(timestamp)
+//           ORDER BY (block_number)
+//       `,
+//       })
+//     })
+//
+//     it('should handle simple fork', async () => {
+//       mockPortal = await createMockPortal([
+//         {
+//           // 1. The First response is okay, it gets 5 blocks
+//           statusCode: 200,
+//           data: [
+//             { header: { number: 1, hash: '0x1', timestamp: 1000 } },
+//             { header: { number: 2, hash: '0x2', timestamp: 2000 } },
+//             { header: { number: 3, hash: '0x3', timestamp: 3000 } },
+//             { header: { number: 4, hash: '0x4', timestamp: 4000 } },
+//             { header: { number: 5, hash: '0x5', timestamp: 5000 } },
+//           ],
+//           finalizedHead: {
+//             number: 1,
+//             hash: '0x1',
+//           },
+//         },
+//
+//         {
+//           // 2. A reorg for 2 blocks happens
+//           statusCode: 409,
+//           data: {
+//             previousBlocks: [
+//               // Unforked blocks
+//               { number: 2, hash: '0x2' },
+//               { number: 3, hash: '0x3' },
+//               // Forked blocks
+//               { number: 4, hash: '0x4-1' },
+//               { number: 5, hash: '0x5-1' },
+//             ],
+//           },
+//           validateRequest: (req) => {
+//             // Request should include block 6 and hash for the previous block
+//             expect(req).toMatchObject({
+//               type: 'solana',
+//               fromBlock: 6,
+//               parentBlockHash: '0x5',
+//             })
+//           },
+//         },
+//         {
+//           statusCode: 200,
+//           data: [
+//             { header: { number: 4, hash: '0x4-1', timestamp: 4000 } },
+//             { header: { number: 5, hash: '0x5-1', timestamp: 5000 } },
+//             { header: { number: 6, hash: '0x6-1', timestamp: 6000 } },
+//             { header: { number: 7, hash: '0x7-1', timestamp: 7000 } },
+//           ],
+//           validateRequest: (req) => {
+//             /**
+//              * Request should include block 4 and hash for the last unforked block
+//              * which is 3 in that test
+//              */
+//             expect(req).toMatchObject({
+//               type: 'solana',
+//               fromBlock: 4,
+//               parentBlockHash: '0x3',
+//             })
+//           },
+//         },
+//       ])
+//
+//       let rollbacks = 0
+//
+//       const testStream = new TestStream({
+//         portal: mockPortal.url,
+//         state: new ClickhouseState(client, {
+//           table: 'sync',
+//           onRollback: async ({ state, latest }) => {
+//             if (rollbacks === 0) {
+//               expect(latest).toMatchObject({ number: 0 })
+//             } else {
+//               expect(latest).toMatchObject({ number: 3, hash: '0x3' })
+//             }
+//
+//             rollbacks++
+//
+//             await state.removeAllRows({
+//               table: 'test',
+//               where: `block_number > {latest:UInt32}`,
+//               params: { latest: latest.number },
+//             })
+//           },
+//         }),
+//         blockRange: { from: 0, to: 7 },
+//       })
+//
+//       for await (const data of await testStream.stream()) {
+//         await client.insert({
+//           table: 'test',
+//           values: data.map((b) => ({
+//             block_number: b.number,
+//             timestamp: b.timestamp,
+//             block_hash: b.hash,
+//             sign: 1,
+//           })),
+//           format: 'JSONEachRow',
+//         })
+//
+//         await testStream.ack()
+//       }
+//
+//       const res = await client.query({
+//         query: 'SELECT * FROM test FINAL ORDER BY block_number ASC',
+//         format: 'JSONEachRow',
+//       })
+//       const data = await res.json()
+//
+//       expect(data).toMatchInlineSnapshot(`
+//         [
+//           {
+//             "block_hash": "0x1",
+//             "block_number": 1,
+//             "sign": 1,
+//             "timestamp": "1970-01-01T00:16:40Z",
+//           },
+//           {
+//             "block_hash": "0x2",
+//             "block_number": 2,
+//             "sign": 1,
+//             "timestamp": "1970-01-01T00:33:20Z",
+//           },
+//           {
+//             "block_hash": "0x3",
+//             "block_number": 3,
+//             "sign": 1,
+//             "timestamp": "1970-01-01T00:50:00Z",
+//           },
+//           {
+//             "block_hash": "0x4-1",
+//             "block_number": 4,
+//             "sign": 1,
+//             "timestamp": "1970-01-01T01:06:40Z",
+//           },
+//           {
+//             "block_hash": "0x5-1",
+//             "block_number": 5,
+//             "sign": 1,
+//             "timestamp": "1970-01-01T01:23:20Z",
+//           },
+//           {
+//             "block_hash": "0x6-1",
+//             "block_number": 6,
+//             "sign": 1,
+//             "timestamp": "1970-01-01T01:40:00Z",
+//           },
+//           {
+//             "block_hash": "0x7-1",
+//             "block_number": 7,
+//             "sign": 1,
+//             "timestamp": "1970-01-01T01:56:40Z",
+//           },
+//         ]
+//       `)
+//     })
+//
+//     it('should handle fork up to last finalized block', async () => {
+//       mockPortal = await createMockPortal([
+//         {
+//           // 1. The First response is okay, it gets 5 blocks
+//           statusCode: 200,
+//           data: [
+//             { header: { number: 1, hash: '0x1', timestamp: 1000 } },
+//             { header: { number: 2, hash: '0x2', timestamp: 2000 } },
+//             { header: { number: 3, hash: '0x3', timestamp: 3000 } },
+//             { header: { number: 4, hash: '0x4', timestamp: 4000 } },
+//             { header: { number: 5, hash: '0x5', timestamp: 5000 } },
+//           ],
+//           finalizedHead: { number: 1, hash: '0x1' },
+//         },
+//         {
+//           // 2. A deep reorg happens
+//           statusCode: 409,
+//           data: {
+//             previousBlocks: [
+//               { number: 1, hash: '0x1' },
+//               // Forked blocks
+//               { number: 2, hash: '0x2-1' },
+//               { number: 3, hash: '0x3-1' },
+//               { number: 4, hash: '0x4-1' },
+//               { number: 5, hash: '0x5-1' },
+//             ],
+//           },
+//         },
+//         {
+//           statusCode: 200,
+//           data: [
+//             { header: { number: 2, hash: '0x2-1', timestamp: 4000 } },
+//             { header: { number: 3, hash: '0x3-1', timestamp: 5000 } },
+//           ],
+//           finalizedHead: { number: 2, hash: '0x2-1' },
+//         },
+//         // we mock 2 responses here as the first will fail
+//         ...new Array(2).fill({
+//           statusCode: 200,
+//           data: [
+//             { header: { number: 4, hash: '0x4-1', timestamp: 4000 } },
+//             { header: { number: 5, hash: '0x5-1', timestamp: 5000 } },
+//             { header: { number: 6, hash: '0x6-1', timestamp: 6000 } },
+//             { header: { number: 7, hash: '0x7-1', timestamp: 7000 } },
+//           ],
+//           finalizedHead: { number: 4, hash: '0x4-1' },
+//           validateRequest: (req) => {
+//             expect(req).toMatchObject({
+//               type: 'solana',
+//               fromBlock: 4,
+//               parentBlockHash: '0x3-1',
+//             })
+//           },
+//         }),
+//       ])
+//
+//       let finished = false
+//       let crashes = 0
+//
+//       while (!finished) {
+//         const testStream = new TestStream({
+//           portal: mockPortal.url,
+//           state: new ClickhouseState(client, {
+//             table: 'sync',
+//             onRollback: async ({ state, latest }) => {
+//               await state.removeAllRows({
+//                 table: 'test',
+//                 where: `block_number > {latest:UInt32}`,
+//                 params: { latest: latest.number },
+//               })
+//             },
+//           }),
+//           blockRange: { from: 0, to: 7 },
+//         })
+//
+//         try {
+//           const stream = await testStream.stream()
+//           for await (const data of stream) {
+//             if (data[0].number === 4 && crashes === 0) {
+//               throw new Error('process failed')
+//             }
+//
+//             await testStream.ack()
+//           }
+//
+//           finished = true
+//         } catch (error) {
+//           crashes++
+//           testStream.stop()
+//         }
+//       }
+//
+//       const data = await getAllFromSyncTable()
+//       expect(data).toMatchInlineSnapshot(`
+//         [
+//           {
+//             "chain_continuity": "[]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":0}",
+//             "sign": 1,
+//           },
+//           {
+//             "chain_continuity": "[{"number":5,"hash":"0x5","timestamp":5000},{"number":4,"hash":"0x4","timestamp":4000},{"number":3,"hash":"0x3","timestamp":3000},{"number":2,"hash":"0x2","timestamp":2000},{"number":1,"hash":"0x1","timestamp":1000}]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":5,"hash":"0x5","timestamp":5000}",
+//             "sign": 1,
+//           },
+//           {
+//             "chain_continuity": "[{"number":3,"hash":"0x3-1","timestamp":5000},{"number":2,"hash":"0x2-1","timestamp":4000}]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":3,"hash":"0x3-1","timestamp":5000}",
+//             "sign": 1,
+//           },
+//           {
+//             "chain_continuity": "[{"number":7,"hash":"0x7-1","timestamp":7000},{"number":6,"hash":"0x6-1","timestamp":6000},{"number":5,"hash":"0x5-1","timestamp":5000},{"number":4,"hash":"0x4-1","timestamp":4000}]",
+//             "id": "stream",
+//             "initial": "{"timestamp":0,"number":0,"hash":""}",
+//             "latest": "{"number":7,"hash":"0x7-1","timestamp":7000}",
+//             "sign": 1,
+//           },
+//         ]
+//       `)
+//     })
+//
+//     it('handle fork from new start and not hang on drain', async () => {
+//       mockPortal = await createMockPortal([
+//         {
+//           // 1. The First response is okay, it gets 5 blocks
+//           statusCode: 200,
+//           data: [
+//             { header: { number: 1, hash: '0x1', timestamp: 1000 } },
+//             { header: { number: 2, hash: '0x2', timestamp: 2000 } },
+//             { header: { number: 3, hash: '0x3', timestamp: 3000 } },
+//             { header: { number: 4, hash: '0x4', timestamp: 4000 } },
+//             { header: { number: 5, hash: '0x5', timestamp: 5000 } },
+//           ],
+//           finalizedHead: { number: 1, hash: '0x1' },
+//         },
+//         {
+//           // 2. A deep reorg happens
+//           statusCode: 409,
+//           data: {
+//             previousBlocks: [
+//               { number: 1, hash: '0x1' },
+//               // Forked blocks
+//               { number: 2, hash: '0x2-1' },
+//               { number: 3, hash: '0x3-1' },
+//               { number: 4, hash: '0x4-1' },
+//               { number: 5, hash: '0x5-1' },
+//             ],
+//           },
+//         },
+//         {
+//           statusCode: 200,
+//           data: [
+//             { header: { number: 2, hash: '0x2-1', timestamp: 4000 } },
+//             { header: { number: 3, hash: '0x3-1', timestamp: 5000 } },
+//             { header: { number: 3, hash: '0x3-1', timestamp: 5000 } },
+//             { header: { number: 4, hash: '0x4-1', timestamp: 4000 } },
+//             { header: { number: 5, hash: '0x5-1', timestamp: 5000 } },
+//             { header: { number: 6, hash: '0x6-1', timestamp: 5000 } },
+//             { header: { number: 7, hash: '0x7-1', timestamp: 5000 } },
+//           ],
+//           finalizedHead: { number: 2, hash: '0x2-1' },
+//         },
+//       ])
+//
+//       {
+//         const testStream = new TestStream({
+//           portal: mockPortal.url,
+//           state: new ClickhouseState(client, {
+//             table: 'sync',
+//             onRollback: async ({ state, latest }) => {
+//               await state.removeAllRows({
+//                 table: 'test',
+//                 where: `block_number > {latest:UInt32}`,
+//                 params: { latest: latest.number },
+//               })
+//             },
+//           }),
+//           blockRange: { from: 0, to: 5 },
+//         })
+//         for await (const data of await testStream.stream()) {
+//           await testStream.ack()
+//         }
+//       }
+//
+//       const testStream = new TestStream({
+//         portal: mockPortal.url,
+//         state: new ClickhouseState(client, {
+//           table: 'sync',
+//           onRollback: async ({ state, latest }) => {
+//             await state.removeAllRows({
+//               table: 'test',
+//               where: `block_number > {latest:UInt32}`,
+//               params: { latest: latest.number },
+//             })
+//           },
+//         }),
+//         blockRange: { from: 5, to: 7 },
+//       })
+//       for await (const data of await testStream.stream()) {
+//         await testStream.ack()
+//       }
+//
+//       const data = await getAllFromSyncTable()
+//       expect(data).toMatchInlineSnapshot(`
+//         [
+//           {
+//             "chain_continuity": "[]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":0}",
+//             "sign": 1,
+//           },
+//           {
+//             "chain_continuity": "[{"number":5,"hash":"0x5","timestamp":5000},{"number":4,"hash":"0x4","timestamp":4000},{"number":3,"hash":"0x3","timestamp":3000},{"number":2,"hash":"0x2","timestamp":2000},{"number":1,"hash":"0x1","timestamp":1000}]",
+//             "id": "stream",
+//             "initial": "{"number":0}",
+//             "latest": "{"number":5,"hash":"0x5","timestamp":5000}",
+//             "sign": 1,
+//           },
+//           {
+//             "chain_continuity": "[{"number":7,"hash":"0x7-1","timestamp":5000},{"number":6,"hash":"0x6-1","timestamp":5000},{"number":5,"hash":"0x5-1","timestamp":5000},{"number":4,"hash":"0x4-1","timestamp":4000},{"number":3,"hash":"0x3-1","timestamp":5000},{"number":3,"hash":"0x3-1","timestamp":5000},{"number":2,"hash":"0x2-1","timestamp":4000}]",
+//             "id": "stream",
+//             "initial": "{"timestamp":0,"number":0,"hash":""}",
+//             "latest": "{"number":7,"hash":"0x7-1","timestamp":5000}",
+//             "sign": 1,
+//           },
+//         ]
+//       `)
+//     })
+//   })
+// })

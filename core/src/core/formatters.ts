@@ -47,7 +47,7 @@ export function humanBytes(bytes: number) {
  * displayEstimatedTime(90000) // "ETA: 1d 1h"
  */
 export function displayEstimatedTime(seconds?: number) {
-  if (typeof seconds === 'undefined') {
+  if (typeof seconds === 'undefined' || Number.isNaN(seconds) || !Number.isFinite(seconds)) {
     return 'ETA: calculating...' // unknown
   }
 

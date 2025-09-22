@@ -1,12 +1,6 @@
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
 
-export type MockData<T extends object = any> = T & {
-  header: {
-    number: number
-    hash: string
-    timestamp: number
-  }
-}
+export type MockData<T extends object = any> = T
 
 export interface BlockHeader {
   hash: string
@@ -63,8 +57,15 @@ export async function createMockPortal(mockResponses: MockResponse[]): Promise<M
 
       const mockResp: MockResponse | undefined = mockResponses[requestCount]
       if (!mockResp) {
-        res.statusCode = 500
-        res.end()
+        let body = ''
+        req.on('data', (chunk) => {
+          body += chunk
+        })
+        req.on('end', () => {
+          res.statusCode = 500
+          res.end()
+        })
+
         return
       }
 
@@ -142,12 +143,11 @@ function getServerAddress(server: Server): string {
   return `http://127.0.0.1:${address.port}`
 }
 
-export async function readAll(stream: ReadableStream<MockData>) {
+export async function readAll(stream: AsyncIterable<MockData>) {
   const res: MockData[] = []
 
-  // Use for await...of loop to read the stream
   for await (const chunk of stream) {
-    res.push(chunk)
+    res.push(...chunk.data)
   }
 
   return res

@@ -1,5 +1,4 @@
-import { pino } from 'pino'
-import stdSerializers from 'pino-std-serializers'
+import { pino, stdSerializers } from 'pino'
 
 export function createTestLogger() {
   return pino({

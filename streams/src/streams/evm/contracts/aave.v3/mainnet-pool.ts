@@ -21,6 +21,7 @@ export const events = {
     Withdraw: event("0x3115d1449a7b732c986cba18244e897a450f61e1bb8d589cd2e69e6c8924f9f7", "Withdraw(address,address,address,uint256)", {"reserve": indexed(p.address), "user": indexed(p.address), "to": indexed(p.address), "amount": p.uint256}),
 }
 
+/*
 export const functions = {
     ADDRESSES_PROVIDER: viewFun("0x0542975c", "ADDRESSES_PROVIDER()", {}, p.address),
     FLASHLOAN_PREMIUM_TOTAL: viewFun("0x074b2e43", "FLASHLOAN_PREMIUM_TOTAL()", {}, p.uint128),
@@ -454,3 +455,4 @@ export type UpdateFlashloanPremiumReturn = FunctionReturn<typeof functions.updat
 export type WithdrawParams = FunctionArguments<typeof functions.withdraw>
 export type WithdrawReturn = FunctionReturn<typeof functions.withdraw>
 
+*/

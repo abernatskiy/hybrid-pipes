@@ -1,1 +1,1 @@
-export * from './erc20-transfers-stream'
+export * from './erc20-transfers'
