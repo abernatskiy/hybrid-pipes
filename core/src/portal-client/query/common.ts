@@ -54,7 +54,7 @@ export type SelectionOf<T> = {
 }
 
 export type PortalQuery = {
-  fromBlock?: number
+  fromBlock: number
   toBlock?: number
   parentBlockHash?: string
   [key: string]: unknown

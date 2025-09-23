@@ -1,13 +1,20 @@
-import { applyRangeBound, concatQueryLists, mergeRangeRequests, Range, RangeRequest } from '../core/query-builder'
+import {
+  applyRangeBound,
+  concatQueryLists,
+  mergeRangeRequests,
+  NaturalRange,
+  Range,
+  RangeRequest,
+} from '../core/query-builder'
 import { mergeDeep } from '../internal/object/merge-deep'
-import { evm } from '../portal-client'
+import { evm, PortalClient } from '../portal-client'
 
 /**
  * An ordered list of non-overlapping range requests
  */
 export type RangeRequestList<R> = RangeRequest<R>[]
 
-export type RequestOptions<R> = { range?: Range; request: R }
+export type RequestOptions<R> = { range: NaturalRange; request: R }
 export type LogRequestOptions = RequestOptions<evm.LogRequest>
 export type TransactionRequestOptions = RequestOptions<evm.TransactionRequest>
 export type TraceRequestOptions = RequestOptions<evm.TraceRequest>
@@ -15,7 +22,7 @@ export type StateDiffRequestOptions = RequestOptions<evm.StateDiffRequest>
 export type DataRequestRange = RangeRequest<evm.DataRequest>
 
 export class EvmQueryBuilder {
-  protected requests: RangeRequest<evm.DataRequest>[] = []
+  protected requests: RangeRequest<evm.DataRequest, NaturalRange>[] = []
   protected fields: evm.FieldSelection = {}
 
   getType() {
@@ -42,7 +49,7 @@ export class EvmQueryBuilder {
 
   private addRequest(type: keyof evm.DataRequest, options: RequestOptions<any>): this {
     this.requests.push({
-      range: options.range ?? { from: 0 },
+      range: options.range,
       request: {
         [type]: [{ ...options.request }],
       },
@@ -50,7 +57,7 @@ export class EvmQueryBuilder {
     return this
   }
 
-  addRange(range: Range): this {
+  addRange(range: NaturalRange): this {
     this.requests.push({
       range,
     } as any)
@@ -73,8 +80,17 @@ export class EvmQueryBuilder {
     return this.addRequest('stateDiffs', options)
   }
 
-  calculateRanges(bound: Range = { from: 0 }): DataRequestRange[] {
-    const ranges = mergeRangeRequests(this.requests, mergeDataRequests)
+  async calculateRanges({ portal, bound }: { bound?: Range; portal: PortalClient }): Promise<DataRequestRange[]> {
+    const latest = this.requests.some((r) => r.range.from === 'latest') ? await portal.getHead() : undefined
+
+    const ranges = mergeRangeRequests(
+      this.requests.map((r) => ({
+        range: r.range.from === 'latest' ? { from: latest?.number || 0 } : r.range,
+        request: r.request || {},
+      })),
+      mergeDataRequests,
+    )
+
     if (!ranges.length) {
       // FIXME request should be optional
       return [{ range: bound } as any]
@@ -87,11 +103,11 @@ export class EvmQueryBuilder {
 export function mergeDataRequests(...requests: evm.DataRequest[]): evm.DataRequest {
   let res: evm.DataRequest = {}
   for (let req of requests) {
-    res.transactions = concatQueryLists(res.transactions, req.transactions)
-    res.logs = concatQueryLists(res.logs, req.logs)
-    res.traces = concatQueryLists(res.traces, req.traces)
-    res.stateDiffs = concatQueryLists(res.stateDiffs, req.stateDiffs)
-    if (res.includeAllBlocks || req.includeAllBlocks) {
+    res.transactions = concatQueryLists(res?.transactions, req.transactions)
+    res.logs = concatQueryLists(res?.logs, req.logs)
+    res.traces = concatQueryLists(res?.traces, req.traces)
+    res.stateDiffs = concatQueryLists(res?.stateDiffs, req.stateDiffs)
+    if (res?.includeAllBlocks || req.includeAllBlocks) {
       res.includeAllBlocks = true
     }
   }

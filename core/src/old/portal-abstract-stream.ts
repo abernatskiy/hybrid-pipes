@@ -325,7 +325,7 @@ export abstract class PortalAbstractStream<
 
           const block = await this.options.state.onRollback({
             type: 'blockchain_fork',
-            canonicalBlocks: blocks,
+            canonicalBlocks: blocks as any,
           })
 
           const fromBlock = block.number + 1

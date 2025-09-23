@@ -93,13 +93,13 @@ function isForkHttpError(err: unknown): err is HttpError {
 }
 
 export class PortalClient {
-  private url: URL
+  private readonly url: URL
   private client: HttpClient
-  private headPollInterval: number
-  private minBytes: number
-  private maxBytes: number
-  private maxIdleTime: number
-  private maxWaitTime: number
+  private readonly headPollInterval: number
+  private readonly minBytes: number
+  private readonly maxBytes: number
+  private readonly maxIdleTime: number
+  private readonly maxWaitTime: number
 
   constructor(options: PortalClientOptions) {
     this.url = new URL(options.url)
@@ -109,6 +109,10 @@ export class PortalClient {
     this.maxBytes = options.maxBytes ?? this.minBytes
     this.maxIdleTime = options.maxIdleTime ?? 300
     this.maxWaitTime = options.maxWaitTime ?? 5_000
+  }
+
+  getUrl() {
+    return this.url.toString()
   }
 
   private getDatasetUrl(path: string): string {
@@ -290,6 +294,7 @@ function createPortalStream<Q extends Query>(
 
   const ingest = async () => {
     if (buffer.signal.aborted) return
+
     if (toBlock != null && fromBlock > toBlock) return
 
     let res = await requestStream(

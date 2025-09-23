@@ -23,7 +23,7 @@ export type FactoryEvent<T extends EventArgs> = { contract: string; blockNumber:
 export type FactoryOptions<T extends EventArgs> = {
   address: string
   event: AbiEvent<T>
-  preindex?: PortalRange
+  preindex?: { from: number | string; to: number | string }
   parameter: string | ((data: DecodedAbiEvent<T>) => string)
   database: FactoryPersistentAdapter<FactoryEvent<T>>
 }
@@ -69,7 +69,7 @@ export class Factory<T extends EventArgs> {
   }
 
   preIndexRange() {
-    return this.options.preindex ? parsePortalRange(this.options.preindex) : undefined
+    return this.options.preindex ? (parsePortalRange(this.options.preindex) as { from: number; to: number }) : undefined
   }
 
   async startPreIndex({ logger, portal }: { logger: Logger; portal: PortalClient }) {

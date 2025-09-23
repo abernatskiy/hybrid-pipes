@@ -1,3 +1,5 @@
+import { NaturalRange } from './query-builder'
+
 export function parseBlockFormatting(block: string | number) {
   if (typeof block === 'number') return block
   /**
@@ -25,15 +27,20 @@ function parseBlock(block: string | number, offset?: number) {
   return parseBlockFormatting(block)
 }
 
-export function parsePortalRange(range?: PortalRange, defaultValue?: PortalRange): ParsedRange {
-  //
-  range = range || defaultValue || { from: 0 }
+export function parsePortalRange(range: PortalRange, defaultValue?: PortalRange): NaturalRange {
+  range = range || defaultValue
+
+  if (range.from === 'latest') {
+    return { from: 'latest', to: range.to ? parseBlock(range.to) : undefined }
+  }
 
   const from = parseBlock(range.from || '0')
+
   const to = range.to ? parseBlock(range.to, from) : undefined
 
   return { from, to }
 }
-
-export type PortalRange = { from?: number | string; to?: number | string }
-export type ParsedRange = { from: number; to?: number }
+export type PortalRange = {
+  from?: number | string | 'latest'
+  to?: number | string
+}

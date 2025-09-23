@@ -1,16 +1,21 @@
+import { createHash } from 'node:crypto'
 import { RangeRequestList } from '../evm'
 import { Heap } from '../internal/heap'
+import { PortalClient } from '../portal-client'
 
 /**
  * A range of blocks with inclusive boundaries
  */
-export interface Range {
+export type Range = {
   from: number
   to?: number
 }
-export interface RangeRequest<R> {
-  range: Range
-  request: R
+
+export type NaturalRange = Range | { from: 'latest'; to?: number }
+
+export interface RangeRequest<Req, R = Range> {
+  range: R
+  request: Req
 }
 
 export interface QueryBuilder {
@@ -18,7 +23,7 @@ export interface QueryBuilder {
   addFields(fields: unknown): QueryBuilder
   getFields(): unknown
   merge(query?: QueryBuilder): QueryBuilder
-  calculateRanges(bound?: Range): RangeRequest<any>[]
+  calculateRanges(req: { bound?: Range; portal: PortalClient }): Promise<RangeRequest<any>[]>
 }
 
 // TODO generate unit tests for this
@@ -246,4 +251,8 @@ export function rangeEnd(range: Range): number {
 export function concatQueryLists<T extends object>(a?: T[], b?: T[]): T[] | undefined {
   let result = [...(a || []), ...(b || [])]
   return result.length ? result : undefined
+}
+
+export function hashQuery(value: any): string {
+  return createHash('md5').update(JSON.stringify(value)).digest('hex')
 }

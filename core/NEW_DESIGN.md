@@ -95,7 +95,7 @@ SDK 2.0 aims to address the shortcomings of the current version and provide a mo
   - [ ] Define and expose all built-in metrics
 
 - [x] Tracking progress
-  - [ ] "IN SYNC" should be calculated based on the last block number
+  - [x] "IN SYNC" should be calculated based on the last block number
   - [x] Bytes downloaded 
   - [ ] (feat) Number of requests to the portal esp. retries
 
@@ -117,7 +117,7 @@ SDK 2.0 aims to address the shortcomings of the current version and provide a mo
   
 - [x] Add Clickhouse support
   - [x] Forks support
-  - [ ] Add tests
+  - [x] Add tests
   - [ ] Forks on huge tables can cause issues
 
 - [ ] Explore Drizzle support

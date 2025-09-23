@@ -63,7 +63,7 @@ export class ClickhouseStore {
       tables.map(async (table) => {
         // TODO check engine
 
-        const count = await this._removeAllRows({
+        const count = await this.removeAllRowsByQuery({
           table,
           query: `SELECT * FROM ${table} FINAL WHERE ${where}`,
           params,
@@ -74,7 +74,7 @@ export class ClickhouseStore {
     )
   }
 
-  private async _removeAllRows({
+  async removeAllRowsByQuery({
     table,
     query,
     params,

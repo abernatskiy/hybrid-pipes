@@ -13,6 +13,10 @@ export function formatNumber(value: number) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(value)
 }
 
+export function formatBlock(value: number | string) {
+  return typeof value === 'number' ? formatNumber(value) : value
+}
+
 /**
  * Converts a number of bytes into a human-readable string using appropriate units.
  *

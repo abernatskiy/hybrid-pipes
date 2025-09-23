@@ -1,10 +1,16 @@
 import { Gauge } from 'prom-client'
-
+import { displayEstimatedTime, formatBlock, formatNumber, humanBytes } from './formatters'
+import { Logger } from './logger'
 import { createTransformer } from './transformer'
-import { CursorState } from './types'
+import { BlockCursor } from './types'
 
 type HistoryState = { ts: number; bytesDownloaded: number; blockNumber: number }
-type LastCursorState = CursorState & { last: number }
+type LastCursorState = { initial: number; last: number; current: BlockCursor }
+
+export type StartState = {
+  initial: number
+  current?: BlockCursor
+}
 
 export type ProgressState = {
   state: {
@@ -77,8 +83,11 @@ class ProgressHistory {
   calculate(): ProgressState {
     const stat = this.validateHistory(this.#states)
 
-    const last = this.#lastCursorState?.last || 0
-    const initial = this.#lastCursorState?.initial?.number || 0
+    /* Ensure we use the highest block number between current and last state,
+     * as processing might advance beyond cached values
+     */
+    const last = Math.max(this.#lastCursorState?.current?.number || 0, this.#lastCursorState?.last || 0)
+    const initial = this.#lastCursorState?.initial || 0
     const current = this.#lastCursorState?.current?.number || 0
 
     const blocksTotal = Math.max(last - initial, 0)
@@ -90,7 +99,7 @@ class ProgressHistory {
 
     return {
       state: {
-        initial: this.#lastCursorState?.initial?.number || 0,
+        initial: this.#lastCursorState?.initial || 0,
         last: this.#lastCursorState?.last || 0,
         current: this.#lastCursorState?.current?.number || 0,
         percent: blocksTotal > 0 ? (blocksProcessed / blocksTotal) * 100 : 0,
@@ -110,17 +119,51 @@ class ProgressHistory {
   }
 }
 
-export function progressTracker<T>({ onProgress }: { onProgress: (progress: ProgressState) => void | false }) {
+export type ProgressTrackerOptions = {
+  onStart?: (progress: StartState) => void
+  onProgress?: (progress: ProgressState) => void
+  interval?: number
+  logger?: Logger
+}
+
+export function progressTracker<T>({ onProgress, onStart, interval, logger }: ProgressTrackerOptions) {
   let ticker: NodeJS.Timeout
-  const interval = 5000
   const history = new ProgressHistory()
+
+  if (!onStart) {
+    onStart = (data: StartState) => {
+      if (data.current) {
+        logger?.info(`Resuming indexing from ${formatBlock(data.current.number)} block`)
+        return
+      }
+
+      logger?.info(`Start indexing from ${formatBlock(data.initial)} block`)
+    }
+  }
+
+  if (!onProgress) {
+    onProgress = ({ state, interval }) => {
+      if (state.current === 0 && state.last === 0) {
+        logger?.info({ message: 'Initializing...' })
+        return
+      }
+
+      logger?.info({
+        message: `${formatNumber(state.current)} / ${formatNumber(state.last)} (${formatNumber(state.percent)}%), ${displayEstimatedTime(state.etaSeconds)}`,
+        blocks: `${interval.processedBlocks.perSecond.toFixed(interval.processedBlocks.perSecond > 1 ? 0 : 2)} blocks/second`,
+        bytes: `${humanBytes(interval.bytesDownloaded.perSecond)}/second`,
+      })
+    }
+  }
 
   let currentBlock: Gauge
 
   return createTransformer<T, T>({
     profiler: { id: 'progress_tracker' },
-    start: ({ metrics }) => {
+    start: ({ metrics, state }) => {
       ticker = setInterval(() => onProgress(history.calculate()), interval)
+
+      onStart(state)
 
       currentBlock = metrics.gauge({
         name: 'sqd_current_block',
@@ -128,17 +171,14 @@ export function progressTracker<T>({ onProgress }: { onProgress: (progress: Prog
       })
       currentBlock.set(-1)
     },
-    transform: async (data, ctx) => {
+    transform: async (data, { state, bytes }) => {
       history.addState({
-        state: {
-          ...ctx.cursor,
-          last: Math.min(ctx.query.toBlock || Infinity, ctx.head.finalized?.number || Infinity),
-        },
-        bytes: ctx.bytes,
+        state: state,
+        bytes: bytes,
       })
 
-      if (ctx.cursor.current?.number) {
-        currentBlock.set(ctx.cursor.current.number)
+      if (state.current?.number) {
+        currentBlock.set(state.current.number)
       }
 
       return data

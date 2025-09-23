@@ -1,6 +1,6 @@
 import { applyRangeBound, concatQueryLists, mergeRangeRequests, Range, RangeRequest } from '../core/query-builder'
 import { mergeDeep } from '../internal/object/merge-deep'
-import { solana } from '../portal-client'
+import { PortalClient, solana } from '../portal-client'
 
 export type RequestOptions<R> = { range?: Range; request: R }
 export type LogRequestOptions = RequestOptions<solana.LogRequest>
@@ -86,7 +86,13 @@ export class SolanaQueryBuilder {
     return this
   }
 
-  calculateRanges(bound: Range = { from: 0 }): DataRequestRange[] {
+  async calculateRanges({
+    portal,
+    bound = { from: 0 },
+  }: {
+    bound: Range
+    portal: PortalClient
+  }): Promise<DataRequestRange[]> {
     const ranges = mergeRangeRequests(this.requests, mergeDataRequests)
     if (!ranges.length) {
       // FIXME request should be optional

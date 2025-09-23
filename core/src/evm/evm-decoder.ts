@@ -1,7 +1,7 @@
 import type { AbiEvent } from '@subsquid/evm-abi'
 
 import { createTransformer, PortalRange, ProfilerOptions, parsePortalRange, Transformer } from '../core'
-import { formatNumber } from '../core/formatters'
+import { formatBlock, formatNumber } from '../core/formatters'
 import { Log } from '../portal-client/query/evm'
 import { EvmPortalData } from './evm-portal-source'
 import { EvmQueryBuilder } from './evm-query-builder'
@@ -38,7 +38,7 @@ export type EventResponse<T extends Events, Contracts> = {
 type Contracts = Factory<any> | string[]
 
 type DecodedEventPipeArgs<T extends Events, C extends Contracts> = {
-  range?: PortalRange
+  range: PortalRange
   contracts?: C
   events: EventArgs<T>
   profiler?: ProfilerOptions
@@ -110,13 +110,13 @@ export function createEvmDecoder<T extends Events, C extends Contracts>({
         })
 
         const children = await contracts.getAllContracts()
-        const preIndexedRange = { from: decodedRange.from, to: preIndexRange.to }
-        const restRange = { from: preIndexRange.from + 1, to: decodedRange.to }
-        // FIXME make "to" required
+        const firstRange = { from: decodedRange?.from || 0, to: preIndexRange.to }
+        const secondRange = { from: preIndexRange.to + 1, to: decodedRange?.to }
+
         logger.info(
           [
-            `Configuring pre-indexed range ${formatNumber(preIndexedRange.from)} to ${formatNumber(preIndexedRange.to || 0)} using server-side filter with ${children.length} contracts`,
-            `And range ${formatNumber(restRange.from)} to ${formatNumber(restRange.to || 0)} using client-side filter`,
+            `Configuring pre-indexed range ${formatBlock(firstRange.from)} to ${formatNumber(firstRange.to)} using server-side filter with ${children.length} contracts`,
+            `And range ${formatNumber(secondRange.from)}${secondRange.to ? ' to ' + formatNumber(secondRange.to || 0) : ''} using client-side filter`,
           ].join('\n'),
         )
 
@@ -124,7 +124,7 @@ export function createEvmDecoder<T extends Events, C extends Contracts>({
           .addFields(decodedEventFields)
           .addLog({
             // pre-indexed stage
-            range: preIndexedRange,
+            range: firstRange,
             request: {
               address: children.map((c) => c.contract), // fill addresses from factory events
               topic0: eventTopics,
@@ -132,7 +132,7 @@ export function createEvmDecoder<T extends Events, C extends Contracts>({
             },
           })
           .addLog({
-            range: restRange,
+            range: secondRange,
             request: {
               topic0: eventTopics,
               transaction: true,

@@ -6,9 +6,9 @@ async function cli() {
 
   const stream = createEvmPortalSource({
     portal: 'https://portal.sqd.dev/datasets/base-mainnet',
-    cache: {
-      adapter: await sqlitePortalCache({ path: './cache.sqlite' }),
-    },
+    // cache: {
+    //   adapter: await sqlitePortalCache({ path: './cache.sqlite' }),
+    // },
   }).extend({
     transfers: erc20Transfers({ range }),
     uniswapV3: uniswapV3Decoder({
@@ -25,7 +25,7 @@ async function cli() {
     console.log(`parsed ${data.transfers.length} transfers`)
     console.log(`parsed ${data.uniswapV3.length} swaps`)
     console.log('-------------------------------------')
-    console.log(ctx.profiler.toString())
+    // console.log(ctx.profiler.toString())
   }
 }
 

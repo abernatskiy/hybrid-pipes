@@ -1,7 +1,8 @@
 import { BlockCursor } from '../../core'
+import { BatchCtx } from '../../core/portal-source'
 import { ClickhouseStore } from './clickhouse-store'
 
-// FIXME: we need refactor it to make order more deterministic and predictable.
+// FIXME: we need refactor it to make order more deterministic and predictable - WHY?
 // ORDER BY (timestamp, id) isn't a good choice
 const table = (table: string) => `
 CREATE TABLE IF NOT EXISTS ${table}
@@ -9,8 +10,7 @@ CREATE TABLE IF NOT EXISTS ${table}
     id               String COMMENT 'Stream identifier to differentiate multiple logical streams',
     current          String COMMENT 'Current offset, corresponds to the most recent indexed block',
     finalized        String COMMENT 'Finalized offset, usually corresponds to the most recent known block',
-    initial          String COMMENT 'The very first offset from which this stream started tracking',
-    chain_continuity String COMMENT 'JSON-encoded list of block references starting from the finalized block and including all unfinalized blocks',
+    rollback_chain   String COMMENT 'JSON-encoded list of block references starting from the finalized block and including all unfinalized blocks',
     timestamp        DateTime(3) COMMENT 'Timestamp of the record, in milliseconds with 3 decimal precision',
     sign             Int8 COMMENT 'Marker used by CollapsingMergeTree to distinguish insertions (+1) and deletions (-1)'
 ) ENGINE = CollapsingMergeTree(sign)
@@ -49,8 +49,6 @@ export type Options = {
 export class ClickhouseState {
   options: Options & Required<Pick<Options, 'database' | 'id' | 'table'>>
 
-  initial?: string
-
   readonly #fullTableName: string
 
   constructor(
@@ -80,19 +78,7 @@ export class ClickhouseState {
     return JSON.parse(cursor)
   }
 
-  async saveCursor({
-    cursor: { current, unfinalized, initial },
-    head,
-  }: {
-    cursor: {
-      initial: { number: number }
-      current: BlockCursor
-      unfinalized: BlockCursor[]
-    }
-    head: {
-      finalized?: BlockCursor
-    }
-  }) {
+  async saveCursor({ state: { current, rollbackChain }, head }: BatchCtx) {
     const timestamp = Date.now()
 
     await this.store.insert({
@@ -100,10 +86,9 @@ export class ClickhouseState {
       values: [
         {
           id: this.options.id,
-          initial: this.initial ? this.initial : JSON.stringify(initial),
           current: this.encodeCursor(current),
           finalized: head.finalized ? this.encodeCursor(head.finalized) : '',
-          chain_continuity: JSON.stringify(unfinalized),
+          rollback_chain: JSON.stringify(rollbackChain),
           sign: 1,
           timestamp,
         },
@@ -111,20 +96,20 @@ export class ClickhouseState {
       format: 'JSONEachRow',
     })
 
-    // const count = await this._removeAllRows({
-    //     table: this.options.table,
-    //     query: `
-    //     SELECT *
-    //     FROM ${this.options.table} FINAL
-    //     ORDER BY "timestamp" DESC
-    //     OFFSET ${this.options.settings?.maxRows}
-    // `,
-    // })
+    const count = await this.store.removeAllRowsByQuery({
+      table: this.options.table,
+      query: `
+        SELECT *
+        FROM ${this.options.table} FINAL
+        ORDER BY "timestamp" DESC
+        OFFSET ${this.options?.maxRows}
+    `,
+    })
 
     // this.options.logger?.debug(`Removed unused offsets from ${count} rows from ${this.options.table}`)
   }
 
-  async getCursor(): Promise<{ current: BlockCursor; initial: BlockCursor } | undefined> {
+  async getCursor(): Promise<BlockCursor | undefined> {
     try {
       const res = await this.store.query({
         query: `SELECT * FROM ${this.#fullTableName} WHERE id = {id:String} ORDER BY timestamp DESC LIMIT 1`,
@@ -134,12 +119,7 @@ export class ClickhouseState {
 
       const [row] = await res.json<{ current: string; initial: string }>()
       if (row) {
-        this.initial = row.initial
-
-        return {
-          current: this.decodeCursor(row.current),
-          initial: this.decodeCursor(row.initial),
-        }
+        return this.decodeCursor(row.current)
       }
 
       return
@@ -154,26 +134,47 @@ export class ClickhouseState {
     }
   }
 
-  async fork(unforked: BlockCursor[]): Promise<BlockCursor | null> {
+  async fork(previousBlocks: BlockCursor[]): Promise<BlockCursor | null> {
     const res = await this.store.query({
       query: `SELECT * FROM ${this.#fullTableName} ORDER BY "timestamp" DESC`,
       format: 'JSONEachRow',
     })
-
-    for await (const rows of res.stream<{ chain_continuity: string }>()) {
+    for await (const rows of res.stream<{ rollback_chain: string; finalized: string }>()) {
       for (const row of rows) {
         const raw = row.json()
-
-        const blocks = JSON.parse(raw.chain_continuity) as BlockCursor[]
+        const blocks = JSON.parse(raw.rollback_chain) as BlockCursor[]
         if (!blocks.length) continue
 
+        blocks.sort((a, b) => b.number - a.number)
+
+        const finalized = JSON.parse(raw.finalized) as BlockCursor
+
         for (const block of blocks) {
-          const found = unforked.find((u) => u.number === block.number && u.hash === block.hash)
-          if (found) return found
+          const found = previousBlocks.find((u) => u.number === block.number && u.hash === block.hash)
+          if (found) {
+            return found
+          }
+
+          if (!previousBlocks.length) {
+            if (block.number < finalized.number) {
+              /**
+               *  We can't go beyond the finalized block.
+               *  TODO: Dead end? What should we do?
+               */
+
+              return null
+            }
+
+            /*
+             * This indicates a deep blockchain fork where we've exhausted all previously known blocks.
+             * We'll return the current block as the fork point
+             * and let the portal fetch a new valid chain of blocks.
+             */
+            return block
+          }
 
           // Remove already visited blocks
-          unforked = unforked.filter((u) => u.number < block.number)
-          if (!unforked.length) return null
+          previousBlocks = previousBlocks.filter((u) => u.number < block.number)
         }
       }
     }

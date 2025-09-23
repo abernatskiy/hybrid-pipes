@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto'
 import { promisify } from 'node:util'
 // @ts-ignore FIXME WTF?
-import { zstdCompress, zstdDecompress } from 'node:zlib'
+import { brotliCompress, brotliDecompress } from 'node:zlib'
 import { BlockCursor, Logger } from '../core'
 import { cursorFromHeader } from '../core/portal-source'
 import { last } from '../internal/array'
 import { GetBlock, PortalClient, PortalStream, PortalStreamData, Query } from '../portal-client'
 
-const compressAsync = promisify(zstdCompress)
-const decompressAsync = promisify(zstdDecompress)
+const compressAsync = promisify(brotliCompress)
+const decompressAsync = promisify(brotliDecompress)
 
 function md5Hash(value: unknown) {
   return createHash('md5').update(JSON.stringify(value)).digest('hex')
@@ -40,7 +40,7 @@ export interface PortalCacheOptions {
 
 interface Options extends PortalCacheOptions {
   portal: PortalClient
-  query: any
+  query: Query
   logger: Logger
 }
 
@@ -84,11 +84,11 @@ class PortalCache {
     if (cursor.number === query.toBlock) return
 
     logger.debug(`switching to the portal from ${cursor.number} block`)
-    for await (const batch of portal.getStream<Q>({
+    for await (const batch of portal.getStream({
+      ...query,
       fromBlock: cursor.number + 1,
       parentBlockHash: cursor.hash,
-      ...query,
-    })) {
+    } as Q)) {
       if (batch.blocks.length === 0) continue
 
       cursor = cursorFromHeader(last(batch.blocks))

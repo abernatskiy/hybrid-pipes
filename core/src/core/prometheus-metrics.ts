@@ -25,7 +25,11 @@ const metrics = new Map<string, any>()
 export function createPrometheusMetrics(): Metrics {
   const registry = new client.Registry()
   const app = express()
-  let server: Server
+  let server: Server | undefined = undefined
+
+  client.collectDefaultMetrics({
+    register: registry,
+  })
 
   app.get('/metrics', async (req, res) => {
     res.set('Content-Type', registry.contentType)
@@ -38,17 +42,13 @@ export function createPrometheusMetrics(): Metrics {
 
   return {
     start: () => {
-      client.collectDefaultMetrics({
-        register: registry,
-      })
-
       server = app.listen(9090)
     },
     stop: async () => {
       client.register.clear()
 
       return new Promise((done) => {
-        server.close((_) => done())
+        server?.close((_) => done())
       })
     },
 

@@ -1,6 +1,6 @@
 import type { ClickHouseClient } from '@clickhouse/client'
 
-import { BlockCursor, Ctx, createTarget } from '../../core'
+import { BlockCursor, Ctx, createTarget, Logger } from '../../core'
 import { ClickhouseState } from './clickhouse-state'
 import { ClickhouseStore } from './clickhouse-store'
 
@@ -56,7 +56,7 @@ export function createClickhouseTarget<T>({
 }: {
   client: ClickHouseClient
   settings?: Settings
-  onStart?: (batch: { store: ClickhouseStore }) => unknown | Promise<unknown>
+  onStart?: (batch: { store: ClickhouseStore; logger: Logger }) => unknown | Promise<unknown>
   onData: (batch: { store: ClickhouseStore; data: T; ctx: Ctx }) => unknown | Promise<unknown>
   onRollback?: (batch: {
     type: 'offset_check' | 'blockchain_fork'
@@ -71,18 +71,17 @@ export function createClickhouseTarget<T>({
 
   return createTarget<T>({
     write: async ({ read, ctx }) => {
-      await onStart?.({ store })
-
+      await onStart?.({ store, logger: ctx.logger })
       const cursor = await state.getCursor()
-      if (cursor?.current) {
-        await onRollback?.({ type: 'offset_check', store, cursor: cursor.current })
-      }
 
-      for await (const batch of read(cursor)) {
-        const userSpan = batch.ctx.profiler.start('clickhouse user handler')
+      if (cursor) {
+        await onRollback?.({ type: 'offset_check', store, cursor: cursor })
+      }
+      for await (const { data, ctx: batchCtx } of read(cursor)) {
+        const userSpan = ctx.profiler.start('data handler')
         await onData({
           store,
-          data: batch.data,
+          data: data,
           ctx: {
             logger: ctx.logger,
             profiler: userSpan,
@@ -90,19 +89,15 @@ export function createClickhouseTarget<T>({
         })
         userSpan.end()
 
-        const cursorSpan = batch.ctx.profiler.start('clickhouse cursor save')
-        await state.saveCursor({
-          cursor: {
-            initial: { number: 0 },
-            current: batch.ctx.cursor.current,
-            unfinalized: batch.ctx.cursor.unfinalized,
-          },
-          head: batch.ctx.head,
-        })
+        const cursorSpan = batchCtx.profiler.start('clickhouse cursor save')
+        await state.saveCursor(batchCtx)
         cursorSpan.end()
       }
 
       await store.close()
+    },
+    fork: async (previousBlocks) => {
+      return state.fork(previousBlocks)
     },
   })
 }
