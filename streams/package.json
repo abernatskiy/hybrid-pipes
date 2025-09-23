@@ -19,6 +19,7 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
+    "@abernatskiy/hybrid-pipes-core": "^0.0.2",
     "@solana/web3.js": "^1.98.4",
     "@subsquid/borsh": "^0.3.0",
     "@subsquid/evm-abi": "^0.3.1",

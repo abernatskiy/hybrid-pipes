@@ -13,9 +13,9 @@ export function erc20Transfers({
   range,
   contracts,
 }: {
-  range?: PortalRange
+  range: PortalRange
   contracts?: string[]
-} = {}) {
+}) {
   return createEvmDecoder({
     profiler: { id: 'erc20_transfers' },
     range: parsePortalRange(range),

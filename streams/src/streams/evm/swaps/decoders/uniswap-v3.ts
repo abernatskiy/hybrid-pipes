@@ -13,7 +13,7 @@ export function uniswapV3Decoder({
   range,
   factory,
 }: {
-  range?: PortalRange
+  range: PortalRange
   factory: {
     address: string
     database: FactoryPersistentAdapter<any>

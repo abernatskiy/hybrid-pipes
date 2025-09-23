@@ -14,7 +14,7 @@ function uniswapV2Decoder({
   range,
   factory,
 }: {
-  range?: PortalRange
+  range: PortalRange
   factory: {
     address: string
     database: FactoryPersistentAdapter<any>
