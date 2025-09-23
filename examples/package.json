@@ -1,0 +1,16 @@
+{
+  "name": "@abernatskiy/hybrid-pipes-examples",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "build": "rm -rf dist/ && tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@abernatskiy/hybrid-pipes-core": "^0.0.2",
+    "@abernatskiy/hybrid-pipes-streams": "^0.0.1"
+  },
+  "peerDependenciesMeta": {}
+}
