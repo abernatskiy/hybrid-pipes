@@ -10,7 +10,7 @@ npm i
 
 ## Data pipelines basics
 
-1. [trivial-pipe](src/01-trivial-pipe.ts): an elementary Portal data pipeline with a source that fetches USDC transfers on a single block + a target that just prints the incoming data.
+1. [trivial-pipe](src/01-trivial-pipe.ts): an elementary Portal data pipeline with a source that fetches USDC transfers on a single block (20M) + a target that just prints the incoming data.
 
 2. [transformer](src/02-transformer.ts): same pipeline, but with a transformer added in the middle. The transformer takes a `transactionHash` for every Transfer.
 
@@ -18,7 +18,9 @@ npm i
 
    This enables transformers to combine data selection and processing, creating self-contained modules.
 
-4. createEvmDecoder transformer
+4. [evm-events-decoder-transformer](src/04-evm-events-decoder-transformer.ts): example of a self-contained transform that requests and decodes event logs of EVM smart contracts. Again I'm using USDC Transfers at block 20M.
+
+   **mention where the ABI code came from in the source code**
 
 5. [parallel-transformers](src/05-parallel-transformers.ts): now there are two transformers simultaneously adding data to the source output. A call
    ```ts

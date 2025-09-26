@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "@abernatskiy/hybrid-pipes-core": "^0.0.2",
-    "@abernatskiy/hybrid-pipes-streams": "^0.0.1"
+    "@abernatskiy/hybrid-pipes-streams": "^0.0.1",
+    "@subsquid/evm-typegen": "^4.4.0"
   },
   "peerDependenciesMeta": {}
 }
