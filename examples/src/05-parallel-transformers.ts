@@ -1,12 +1,11 @@
 import {
   createEvmPortalSource,
-  EvmQueryBuilder,
   type EvmPortalData,
   createTarget,
   createTransformer
 } from '@abernatskiy/hybrid-pipes-core'
 
-import { queryBuilderWithUsdcTransfers } from './01trivial-pipe'
+import { queryBuilderWithUsdcTransfers } from './01-trivial-pipe'
 
 async function main() {
   const source = createEvmPortalSource({

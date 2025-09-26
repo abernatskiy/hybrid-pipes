@@ -2,20 +2,44 @@ import {
   createEvmPortalSource,
   createTarget,
   type EvmPortalData,
-  createTransformer
+  createTransformer,
+  EvmQueryBuilder
 } from '@abernatskiy/hybrid-pipes-core'
 
-import { queryBuilderWithUsdcTransfers } from './01trivial-pipe'
+const blankQueryBuilder = new EvmQueryBuilder()
 
 async function main() {
   const source = createEvmPortalSource({
     portal: 'https://portal.sqd.dev/datasets/ethereum-mainnet',
-    query: queryBuilderWithUsdcTransfers,
+    query: blankQueryBuilder,
   })
 
   const transformer = createTransformer({
     transform: async (data: EvmPortalData<any>) => {
       return data.blocks.map(b => b.logs.map(l => l.transactionHash))
+    },
+    query: ({queryBuilder, portal, logger}) => {
+      queryBuilder.addFields({
+        block: {
+          number: true, hash: true,
+        },
+        log: {
+          address: true,
+          topics: true,
+          data: true,
+          transactionHash: true,
+        },
+      })
+      .addLog({
+        request: {
+          address: ['0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'], // USDC
+          topic0: ['0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'], // Transfer
+        },
+        range: {
+          from: 20000000,
+          to: 20000000,
+        },
+      })
     }
   })
 
