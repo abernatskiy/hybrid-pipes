@@ -1,8 +1,5 @@
-import {
-  createEvmPortalSource,
-  EvmQueryBuilder,
-  createTarget
-} from '@abernatskiy/hybrid-pipes-core'
+import { createTarget } from '@sqd-pipes/pipes'
+import { createEvmPortalSource, EvmQueryBuilder } from '@sqd-pipes/pipes/evm'
 
 // The query builder shapes the query that will go into the Portal API
 // All methods only add to the data request, none shrink it.
@@ -53,6 +50,6 @@ async function main() {
   await source.pipeTo(target)
 }
 
-if (!module.parent) {
+if (!module.parent) { // only need this because of the query builder export
   main().then(() => { console.log('done') })
 }

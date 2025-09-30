@@ -1,9 +1,5 @@
-import {
-  createEvmPortalSource,
-  createTarget,
-  type EvmPortalData,
-  createTransformer
-} from '@abernatskiy/hybrid-pipes-core'
+import { createTarget, createTransformer } from '@sqd-pipes/pipes'
+import { createEvmPortalSource, type EvmPortalData } from '@sqd-pipes/pipes/evm'
 
 import { queryBuilderWithUsdcTransfers } from './01-trivial-pipe'
 
@@ -29,6 +25,5 @@ async function main() {
 
   await source.pipe(transformer).pipeTo(target)
 }
-if (!module.parent) {
-  main().then(() => { console.log('done') })
-}
+
+main().then(() => { console.log('done') })

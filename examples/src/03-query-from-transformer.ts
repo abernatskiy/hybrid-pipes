@@ -1,14 +1,13 @@
+import { createTarget, createTransformer } from '@sqd-pipes/pipes'
 import {
   createEvmPortalSource,
-  createTarget,
   type EvmPortalData,
-  createTransformer,
   EvmQueryBuilder
-} from '@abernatskiy/hybrid-pipes-core'
-
-const blankQueryBuilder = new EvmQueryBuilder()
+} from '@sqd-pipes/pipes/evm'
 
 async function main() {
+  const blankQueryBuilder = new EvmQueryBuilder()
+
   const source = createEvmPortalSource({
     portal: 'https://portal.sqd.dev/datasets/ethereum-mainnet',
     query: blankQueryBuilder,
@@ -53,6 +52,5 @@ async function main() {
 
   await source.pipe(transformer).pipeTo(target)
 }
-if (!module.parent) {
-  main().then(() => { console.log('done') })
-}
+
+main().then(() => { console.log('done') })

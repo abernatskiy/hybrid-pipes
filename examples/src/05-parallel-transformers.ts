@@ -1,9 +1,5 @@
-import {
-  createEvmPortalSource,
-  type EvmPortalData,
-  createTarget,
-  createTransformer
-} from '@abernatskiy/hybrid-pipes-core'
+import { createTarget, createTransformer } from '@sqd-pipes/pipes'
+import { createEvmPortalSource, type EvmPortalData } from '@sqd-pipes/pipes/evm'
 
 import { queryBuilderWithUsdcTransfers } from './01-trivial-pipe'
 
