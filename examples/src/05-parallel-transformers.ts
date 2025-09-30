@@ -1,12 +1,17 @@
 import { createTarget, createTransformer } from '@sqd-pipes/pipes'
-import { createEvmPortalSource, type EvmPortalData } from '@sqd-pipes/pipes/evm'
+import {
+  createEvmPortalSource,
+  createEvmDecoder,
+  commonAbis
+} from '@sqd-pipes/pipes/evm'
+import * as uniswapV3Pool from './abi/uniswapV3Pool'
 
-import { queryBuilderWithUsdcTransfers } from './01-trivial-pipe'
+const atBlock = 20000099
+const oneBlockRange = { from: atBlock, to: atBlock }
 
 async function main() {
   const source = createEvmPortalSource({
     portal: 'https://portal.sqd.dev/datasets/ethereum-mainnet',
-    query: queryBuilderWithUsdcTransfers,
   })
 
   const target = createTarget({
@@ -17,22 +22,22 @@ async function main() {
     },
   })
 
-  const transformer = createTransformer({
-    transform: async (data: EvmPortalData<any>) => {
-      return data.blocks.map(b => b.logs.map(l => l.transactionHash))
-    }
-  })
-
-  const anotherTransformer = createTransformer({
-    transform: async (data: EvmPortalData<any>) => {
-      return data.blocks.map(b => b.logs.length)
-    }
-  })
-
   await source
     .extend({
-      hashes: transformer,
-      lenghts: anotherTransformer,
+      usdcTransfers: createEvmDecoder({
+        contracts: ['0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'], // USDC
+        events: {
+          transfer: commonAbis.erc20.events.Transfer
+        },
+        range: oneBlockRange
+      }),
+      wethUsdcSwaps: createEvmDecoder({
+        contracts: ['0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640'], // Uniswap v3 WETH-USDC pool
+        events: {
+          swap: uniswapV3Pool.events.Swap,
+        },
+        range: oneBlockRange
+      })
     })
     .pipeTo(target)
 }
