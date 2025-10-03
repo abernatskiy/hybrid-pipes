@@ -10,7 +10,7 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@sqd-pipes/pipes": "^0.0.1-alpha.16",
+    "@sqd-pipes/pipes": "^0.0.1-alpha.18",
     "@subsquid/evm-typegen": "^4.4.0"
   },
   "peerDependenciesMeta": {}
