@@ -22,7 +22,7 @@ async function firstRun() {
     .pipeTo(createTarget({
       write: async ({ctx: {logger, profiler}, read}) => {
         for await (const {data} of read()) {
-          logger.info({data}, 'data')
+          console.log('data:', data)
         }
       },
     }))
@@ -35,7 +35,7 @@ async function secondRun() {
     .pipeTo(createTarget({
       write: async ({ctx: {logger, profiler}, read}) => {
         for await (const {data} of read({ number: 20_000_300 })) {
-          logger.info({data}, 'data')
+          console.log('data:', data)
         }
       },
     }))
